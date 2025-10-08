@@ -92,7 +92,7 @@ def validate_key_permissions(key_path: Path) -> bool:
 
 def find_available_local_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
+        s.bind(('127.0.0.1', 0))
         return s.getsockname()[1]
 
 
