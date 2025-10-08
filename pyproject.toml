@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ssm-connect"
-version = "1.0.4"
+version = "1.0.5"
 description = "Interactive CLI to connect to AWS EC2 via SSM or SSH-over-SSM, with keyword search and multi-session terminal launch."
 readme = "README.md"
 requires-python = ">=3.8"
