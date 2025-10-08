@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ssm-connect"
+version = "1.0.4"
+description = "Interactive CLI to connect to AWS EC2 via SSM or SSH-over-SSM, with keyword search and multi-session terminal launch."
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+
+authors = [
+  { name = "Siby Jose", email = "jose.siby@icloud.com" }
+]
+
+keywords = [
+  "aws", "ec2", "ssm", "ssh", "cli", "session-manager",
+  "devops", "cloud", "sre", "operations", "infrastructure"
+]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Environment :: Console",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: System :: Systems Administration",
+  "Topic :: Utilities"
+]
+
+dependencies = [
+  "boto3>=1.26.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/JoseSiby/ssm-connect"
+Issues = "https://github.com/JoseSiby/ssm-connect/issues"
+Source = "https://github.com/JoseSiby/ssm-connect"
+
+[project.scripts]
+ssm-connect = "ssm_connect.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
