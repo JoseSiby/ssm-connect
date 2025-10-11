@@ -20,6 +20,7 @@ Multiple sessions in parallel (each opens in a new terminal). Keyword search acr
 - **Smart Search**: Filter instances by keywords (matches Name, InstanceId, and all tag values)
 - **Multi-Session**: Opens each connection in a new terminal window (Linux, macOS, Windows) allowing for multiple simultaneous sessions.
 - **AWS Session**: Automatically inherits AWS credentials
+- **Security**: All code undergoes automated CodeQL static analysis on every PR and merge
 
 ## Install
 
@@ -36,7 +37,6 @@ Run the tool: ssm-connect
 - **OpenSSH client** (`ssh` command) - for SSH over SSM
 - **Python 3.8+**
 - **Appropriate IAM role**
-
 
 ### Terminal Apps
 
@@ -94,6 +94,20 @@ Ensure:
 
 ## Uninstall
 pip uninstall ssm-connect
+
+## Security
+
+### Static Code Analysis
+
+All pull requests and merges undergo automated [CodeQL](https://codeql.github.com/) security analysis to detect:
+- Security vulnerabilities
+- Code quality issues
+- Potential bugs
+- Unsafe coding patterns
+
+### Reporting Security Issues
+
+If you discover a security vulnerability, please report it privately via GitHub's Security Advisory feature rather than opening a public issue.
 
 
 ## Contributing

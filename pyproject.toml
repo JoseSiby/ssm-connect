@@ -4,19 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ssm-connect"
-version = "1.0.5"
-description = "Interactive CLI to connect to AWS EC2 via SSM or SSH-over-SSM, with keyword search and multi-session terminal launch."
+version = "1.1.0"
+description = "Interactive CLI to connect to AWS EC2 and RDS via SSM or SSH-over-SSM, with credential persistence and multi-session support."
 readme = "README.md"
 requires-python = ">=3.8"
-license = "Apache-2.0"
+license = {text = "Apache-2.0"}
 
 authors = [
   { name = "Siby Jose", email = "jose.siby@icloud.com" }
 ]
 
 keywords = [
-  "aws", "ec2", "ssm", "ssh", "cli", "session-manager",
-  "devops", "cloud", "sre", "operations", "infrastructure"
+  "aws", "ec2", "rds", "ssm", "ssh", "cli", "session-manager",
+  "devops", "cloud", "sre", "operations", "infrastructure",
+  "port-forwarding", "bastion"
 ]
 
 classifiers = [
@@ -32,8 +33,10 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: System :: Systems Administration",
-  "Topic :: Utilities"
+  "Topic :: Utilities",
+  "License :: OSI Approved :: Apache Software License"
 ]
 
 dependencies = [
@@ -44,12 +47,13 @@ dependencies = [
 Homepage = "https://github.com/JoseSiby/ssm-connect"
 Issues = "https://github.com/JoseSiby/ssm-connect/issues"
 Source = "https://github.com/JoseSiby/ssm-connect"
+Changelog = "https://github.com/JoseSiby/ssm-connect/blob/main/CHANGELOG.md"
 
 [project.scripts]
 ssm-connect = "ssm_connect.main:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+packages = ["ssm_connect"]
 
 [tool.setuptools.package-dir]
 "" = "src"
