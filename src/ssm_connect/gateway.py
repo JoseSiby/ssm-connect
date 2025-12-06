@@ -196,5 +196,64 @@ def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], 
             print("Error: 'aws' command not found. Please ensure the AWS CLI is installed.", file=sys.stderr)
             return 1
         except KeyboardInterrupt:
-            print("\nPort forwarding session terminated.")
             return 0
+
+
+def perform_file_transfer(
+    instance_id: str,
+    username: str,
+    key_path: Path,
+    session: boto3.Session,
+    local_path: str,
+    remote_path: str,
+    direction: str = "upload",
+    recursive: bool = False
+) -> int:
+    env = _prepare_subprocess_env(session)
+    proxy_command = (
+        f"aws ssm start-session --target {instance_id} "
+        f"--document-name AWS-StartSSHSession --parameters portNumber=%p"
+    )
+    strict_host_check = get_host_key_checking_choice()
+    
+    scp_cmd = [
+        "scp", "-i", str(key_path.resolve()),
+        "-o", f"ProxyCommand={proxy_command}",
+        "-o", "IdentitiesOnly=yes"
+    ]
+    
+    if not strict_host_check:
+        scp_cmd += [
+            "-o", "StrictHostKeyChecking=no",
+        ]
+    
+    if recursive:
+        scp_cmd.append("-r")
+        
+    remote_host_str = f"{username}@{instance_id}:{remote_path}"
+    
+    if direction == "upload":
+        scp_cmd += [local_path, remote_host_str]
+        action_desc = f"Uploading '{local_path}' to '{remote_path}' on {instance_id}"
+    else:
+        scp_cmd += [remote_host_str, local_path]
+        action_desc = f"Downloading '{remote_path}' from {instance_id} to '{local_path}'"
+
+    try:
+        print(f"\n{action_desc}...")
+        result = subprocess.run(scp_cmd, env=env)
+        if result.returncode == 0:
+            print("✓ Transfer complete.")
+        else:
+            print("✗ Transfer failed.", file=sys.stderr)
+        return result.returncode
+
+    except FileNotFoundError:
+        print("Error: 'scp' or 'aws' command not found.", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("\nTransfer cancelled.")
+        return 1
+    except Exception as e:
+        print(f"Error during transfer: {e}", file=sys.stderr)
+        return 1

@@ -30,7 +30,8 @@ from .gateway import (
     validate_key_permissions,
     start_ssm_session,
     start_ssh_session,
-    start_port_forwarding_to_rds
+    start_port_forwarding_to_rds,
+    perform_file_transfer
 )
 
 CONFIG_DIR = Path.home() / ".ssm-connect"
@@ -67,6 +68,7 @@ def reset_ssh_defaults():
 class TargetType(Enum):
     EC2 = "ec2"
     RDS = "rds"
+    FILE_TRANSFER = "file_transfer"
 
 
 class ConnectionType(Enum):
@@ -77,12 +79,15 @@ def choose_target_type() -> Optional[TargetType]:
     print("\nWhat do you want to connect to?")
     print("[1] EC2")
     print("[2] RDS")
+    print("[3] File Transfer (SCP)")
     try:
-        choice = input("\nEnter your choice (1 or 2): ").strip()
+        choice = input("\nEnter your choice (1, 2, or 3): ").strip()
         if choice == "1":
             return TargetType.EC2
         elif choice == "2":
             return TargetType.RDS
+        elif choice == "3":
+            return TargetType.FILE_TRANSFER
         else:
             return None
     except (ValueError, KeyboardInterrupt):
@@ -149,6 +154,46 @@ def choose_rds_instance(instances: List[Dict[str, str]]) -> Optional[Dict[str, s
     except (ValueError, IndexError):
         return None
     return None
+
+
+    return None
+
+
+def choose_file_transfer_direction() -> Optional[str]:
+    print("\nSelect Transfer Direction:")
+    print("[1] Upload (Local -> Remote)")
+    print("[2] Download (Remote -> Local)")
+    try:
+        choice = input("\nEnter your choice (1 or 2): ").strip()
+        if choice == "1":
+            return "upload"
+        elif choice == "2":
+            return "download"
+        else:
+            return None
+    except (ValueError, KeyboardInterrupt):
+        return None
+
+
+def prompt_for_scp_paths(direction: str) -> Optional[Tuple[str, str]]:
+    if direction == "upload":
+        local_prompt = "Enter local file path to upload: "
+        remote_prompt = "Enter remote destination path (directory/ or full filename): "
+    else:
+        remote_prompt = "Enter remote file path to download: "
+        local_prompt = "Enter local destination path: "
+        
+    local_path = input(f"\n{local_prompt}").strip().strip("'\"")
+    if not local_path:
+        print("Error: Local path cannot be empty.")
+        return None
+        
+    remote_path = input(f"{remote_prompt}").strip().strip("'\"")
+    if not remote_path:
+        print("Error: Remote path cannot be empty.")
+        return None
+        
+    return local_path, remote_path
 
 
 def prompt_for_ssh_details() -> Optional[Tuple[str, Path]]:
@@ -276,6 +321,7 @@ def main():
                 
                 start_ssh_session(instance_id, username, key_path, session)
         
+        
         elif target_type == TargetType.RDS:
             print("\n=== Step 1: Select the EC2 instance acting as a bastion ===")
             bastion_id = select_ec2_instance(all_instances, "use as bastion")
@@ -298,6 +344,50 @@ def main():
             except Exception as e:
                 print(f"Error setting up RDS port forwarding: {e}", file=sys.stderr)
                 continue
+
+        elif target_type == TargetType.FILE_TRANSFER:
+            instance_id = select_ec2_instance(all_instances, "transfer files with")
+            if not instance_id:
+                print("No instance selected.")
+                continue
+
+            ssh_details = prompt_for_ssh_details()
+            if not ssh_details:
+                print("Failed to get SSH details.")
+                continue
+            username, key_path = ssh_details
+
+            while True:
+                direction = choose_file_transfer_direction()
+                if not direction:
+                    print("Invalid direction.")
+                    break
+
+                paths = prompt_for_scp_paths(direction)
+                if not paths:
+                    break
+                local_path, remote_path = paths
+
+                recursive = False
+                if direction == "upload":
+                    expanded_local_path = os.path.expanduser(local_path)
+                    if os.path.isdir(expanded_local_path):
+                        recursive = True
+                        print("\nDetected directory upload. Recursive mode enabled.")
+                
+                elif direction == "download":
+                     is_recursive = input("Is the remote path a directory? [y/N]: ").strip().lower()
+                     if is_recursive == 'y':
+                         recursive = True
+
+                perform_file_transfer(
+                    instance_id, username, key_path, session,
+                    local_path, remote_path, direction, recursive
+                )
+                
+                again = input("\nTransfer another file with this instance? [Y/n]: ").strip().lower()
+                if again in ('n', 'no'):
+                    break
         
         if not ask_continue_or_exit():
             break
