@@ -5,6 +5,7 @@ Interactive CLI to connect to AWS EC2 instances and RDS databases via:
 - **SSM Session Manager** (interactive shell)
 - **SSH over SSM** (with your SSH key)
 - **RDS Port Forwarding** (via EC2 bastion host)
+- **File Transfer (SCP)** (Securely upload/download files)
 
 Multiple sessions in parallel (each opens in a new terminal). Keyword search across Name, Instance ID, and all tag values. Simple, cross-platform, and secure-by-default.
 
@@ -17,6 +18,9 @@ Multiple sessions in parallel (each opens in a new terminal). Keyword search acr
 - **RDS Connections**:
   - Port forwarding to RDS databases via EC2 bastion host
   - Auto-selects available local port
+- **File Transfer**:
+  - Upload/Download files to/from EC2 instances using SCP
+  - Uses existing SSH key configuration
 - **Smart Search**: Filter instances by keywords (matches Name, InstanceId, and all tag values)
 - **Multi-Session**: Opens each connection in a new terminal window (Linux, macOS, Windows) allowing for multiple simultaneous sessions.
 - **AWS Session**: Automatically inherits AWS credentials
@@ -69,6 +73,12 @@ Start the CLI: ssm-connect
    - **Step 1**: Select EC2 bastion instance (must have SSM access)
    - **Step 2**: Select target RDS database
    - Connect to `localhost:[auto-selected-port]` with your database client
+
+4. **For File Transfer (SCP)**:
+   - Select remote instance
+   - Choose direction (Upload / Download)
+   - Specify local and remote file paths
+   - Tool handles the secure copy tunneling
 
 
 ## Troubleshooting

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ssm-connect"
-version = "1.1.0"
+version = "1.2.0"
 description = "Interactive CLI to connect to AWS EC2 and RDS via SSM or SSH-over-SSM, with credential persistence and multi-session support."
 readme = "README.md"
 requires-python = ">=3.8"

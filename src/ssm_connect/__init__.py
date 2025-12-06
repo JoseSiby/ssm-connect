@@ -1,7 +1,7 @@
 # Copyright 2025 Siby Jose
 # Licensed under the Apache License, Version 2.0
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 from .inventory import (
     make_boto3_session,
@@ -12,7 +12,8 @@ from .inventory import (
 from .gateway import (
     start_ssm_session,
     start_ssh_session,
-    start_port_forwarding_to_rds
+    start_port_forwarding_to_rds,
+    perform_file_transfer
 )
 from .main import main
 
@@ -24,5 +25,6 @@ __all__ = [
     'start_ssm_session',
     'start_ssh_session',
     'start_port_forwarding_to_rds',
+    'perform_file_transfer',
     'main'
 ]
