@@ -107,13 +107,13 @@ pip uninstall ssm-connect
 
 ## Security
 
-### Static Code Analysis
+### Automated Security Checks
 
-All pull requests and merges undergo automated [CodeQL](https://codeql.github.com/) security analysis to detect:
-- Security vulnerabilities
-- Code quality issues
-- Potential bugs
-- Unsafe coding patterns
+All pull requests and merges undergo automated security analysis to ensure code quality and safety:
+
+- **[CodeQL](https://codeql.github.com/)**: Static code analysis for security vulnerabilities and unsafe coding patterns.
+- **Gitleaks**: Scans for hardcoded secrets and credentials to prevent leaks.
+- **Pip-Audit**: Scans Python dependencies for known security vulnerabilities.
 
 ### Reporting Security Issues
 
