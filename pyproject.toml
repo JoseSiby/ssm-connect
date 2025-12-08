@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ssm-connect"
-version = "1.2.0"
+version = "1.2.1"
 description = "Interactive CLI to connect to AWS EC2 and RDS via SSM or SSH-over-SSM, with credential persistence and multi-session support."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -17,11 +17,12 @@ authors = [
 keywords = [
   "aws", "ec2", "rds", "ssm", "ssh", "cli", "session-manager",
   "devops", "cloud", "sre", "operations", "infrastructure",
-  "port-forwarding", "bastion"
+  "port-forwarding", "bastion",
+  "systems-manager", "amazon-web-services", "aws-ssm", "remote-access", "tunneling"
 ]
 
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
   "Intended Audience :: System Administrators",
   "Environment :: Console",
