@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2025-12-08
+### Changed
+- Promoted Project Status to "Production/Stable" in PyPI classifiers.
+- Added comprehensive AWS and cloud-related keywords to `pyproject.toml` for better discoverability.
+
 ## [1.2.0]
 ### Added
 - **File Transfer (SCP)**: New main menu option to securely upload/download files to/from instances
