@@ -15,6 +15,7 @@ Multiple sessions in parallel (each opens in a new terminal). Keyword search acr
 - **EC2 Connections**:
   - SSM Session Manager (interactive shell)
   - SSH over SSM (with private key authentication)
+  - **SSH ProxyJump** (Connect to target host *via* bastion)
 - **RDS Connections**:
   - Port forwarding to RDS databases via EC2 bastion host
   - Auto-selects available local port
@@ -24,7 +25,7 @@ Multiple sessions in parallel (each opens in a new terminal). Keyword search acr
 - **Smart Search**: Filter instances by keywords (matches Name, InstanceId, and all tag values)
 - **Multi-Session**: Opens each connection in a new terminal window (Linux, macOS, Windows) allowing for multiple simultaneous sessions.
 - **AWS Session**: Automatically inherits AWS credentials
-- **Security**: All code undergoes automated CodeQL static analysis on every PR and merge
+- **Security**: Automated scanning via CodeQL, Gitleaks and Pip-Audit on every PR
 
 ## Install
 
@@ -41,6 +42,7 @@ Run the tool: ssm-connect
 - **OpenSSH client** (`ssh` command) - for SSH over SSM
 - **Python 3.8+**
 - **Appropriate IAM role**
+- **SSH Agent** (optional but recommended): Ensure `ssh-agent` is running to avoid repeated passphrase prompts.
 
 ### Terminal Apps
 
@@ -66,6 +68,7 @@ Start the CLI: ssm-connect
    - Choose connection type:
      - `[1] SSM` - Interactive shell via Session Manager
      - `[2] SSH over SSM` - SSH session with your private key
+     - `[3] SSH ProxyJump` - Connect to remote host via this instance
    - Filter and select target EC2 instance
    - For SSH: Provide private key path and username
 
