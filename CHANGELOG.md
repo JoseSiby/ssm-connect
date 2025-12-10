@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0]
 ### Added
-- Security scanning workflow (Gitleaks and Pip-Audit) to CI pipeline.
-- Updated issue templates with project-specific fields.
+- **SSH ProxyJump Support**: New dedicated mode to start an SSH session to a target host *via* an SSM-managed bastion host (`ssh -J bastion target`).
+- **SSH Agent Integration**: Detects and uses the correct `ssh-agent` environment to effectively eliminate redundant passphrase prompts.
+- **Security Scanning**: Added Gitleaks and Pip-Audit to CI pipeline.
+- **Issue Templates**: Updated templates with project-specific fields.
+
 
 ## [1.2.1] - 2025-12-08
 ### Changed

@@ -52,10 +52,18 @@ def _get_instance_name(tags: Optional[List[Dict[str, str]]]) -> str:
     return "Unnamed"
 
 
-def list_running_instances(session: boto3.Session) -> List[Dict[str, str]]:
+def list_running_instances(session: boto3.Session, keywords: Optional[List[str]] = None) -> List[Dict[str, str]]:
     ec2 = session.client("ec2", config=Config(retries={"max_attempts": 5}))
     paginator = ec2.get_paginator("describe_instances")
     filters = [{"Name": "instance-state-name", "Values": ["running"]}]
+    
+    if keywords:
+        kw = keywords[0]
+        if kw.startswith("i-"):
+            filters.append({"Name": "instance-id", "Values": [kw]})
+        else:
+            filters.append({"Name": "tag:Name", "Values": [f"*{kw}*"]})
+        
     instances = []
     for page in paginator.paginate(Filters=filters):
         for reservation in page.get("Reservations", []):

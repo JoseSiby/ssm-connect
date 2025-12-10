@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Dict
 from enum import Enum
 from botocore.exceptions import BotoCoreError, ClientError
+import boto3
 
 from .inventory import (
     make_boto3_session,
@@ -31,7 +32,8 @@ from .gateway import (
     start_ssm_session,
     start_ssh_session,
     start_port_forwarding_to_rds,
-    perform_file_transfer
+    perform_file_transfer,
+    start_ssh_proxyjump_session
 )
 
 CONFIG_DIR = Path.home() / ".ssm-connect"
@@ -74,6 +76,7 @@ class TargetType(Enum):
 class ConnectionType(Enum):
     SSM = "ssm"
     SSH = "ssh"
+    SSH_PROXY = "ssh_proxy"
 
 def choose_target_type() -> Optional[TargetType]:
     print("\nWhat do you want to connect to?")
@@ -98,12 +101,15 @@ def choose_ec2_connection_type() -> Optional[ConnectionType]:
     print("\nSelect Connection Type:")
     print("[1] SSM")
     print("[2] SSH over SSM")
+    print("[3] SSH ProxyJump (Connect to remote host via this instance)")
     try:
-        choice = input("\nEnter your choice (1 or 2): ").strip()
+        choice = input("\nEnter your choice (1, 2, or 3): ").strip()
         if choice == "1":
             return ConnectionType.SSM
         elif choice == "2":
             return ConnectionType.SSH
+        elif choice == "3":
+            return ConnectionType.SSH_PROXY
         else:
             return None
     except (ValueError, KeyboardInterrupt):
@@ -111,7 +117,7 @@ def choose_ec2_connection_type() -> Optional[ConnectionType]:
 
 
 def prompt_for_keywords() -> Optional[List[str]]:
-    raw = input("\n(Optional) Enter keywords to filter instances (or press ENTER to list all): ").strip()
+    raw = input("\n(Optional) Enter instance name/id (fast), or press ENTER to list all (slow): ").strip()
     if not raw:
         return None
     return [s.lower() for s in raw.replace(',', ' ').split() if s.strip()]
@@ -155,8 +161,6 @@ def choose_rds_instance(instances: List[Dict[str, str]]) -> Optional[Dict[str, s
         return None
     return None
 
-
-    return None
 
 
 def choose_file_transfer_direction() -> Optional[str]:
@@ -244,12 +248,21 @@ def prompt_for_ssh_details() -> Optional[Tuple[str, Path]]:
     return username, key_path
 
 
-def select_ec2_instance(all_instances: List[Dict[str, str]], purpose: str = "connect to") -> Optional[str]:
+def select_ec2_instance(session: boto3.Session, purpose: str = "connect to") -> Optional[str]:
     instance_id = None
     
     while not instance_id:
         keywords = prompt_for_keywords()
-        filtered_instances = filter_instances_by_keywords(all_instances, keywords)
+        
+        try:
+            print("Fetching instances...", end="\r", flush=True)
+            instances = list_running_instances(session, keywords)
+            print("                     ", end="\r", flush=True)
+        except Exception as e:
+             print(f"\nError fetching instances: {e}", file=sys.stderr)
+             return None
+
+        filtered_instances = filter_instances_by_keywords(instances, keywords)
         
         if not filtered_instances:
             print("No instances found matching your keywords. Please try again.")
@@ -271,24 +284,35 @@ def ask_continue_or_exit():
     choice = input("\nWould you like to open another session? [Y/n]: ").strip().lower()
     return choice != 'n' and choice != 'no'
 
+
+def print_goodbye():
+    try:
+        print("Namaste! / നമസ്കാരം!")
+    except UnicodeEncodeError:
+        print("Namaste! / Namaskaram!")
+
+
 def main():
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+
     if len(sys.argv) > 1 and sys.argv[1] == "--reset-config":
         reset_ssh_defaults()
         sys.exit(0)
     
     try:
         session = make_boto3_session()
-        all_instances = list_running_instances(session)
+
     except (BotoCoreError, ClientError) as e:
         print(f"AWS API Error: Failed to list instances: {e}", file=sys.stderr)
         print("\nTip: Ensure your AWS credentials are configured correctly.", file=sys.stderr)
         sys.exit(1)
     
-    if not all_instances:
-        print(f"No running EC2 instances found in region '{session.region_name}'.")
-        sys.exit(0)
+
     
-    print(f"Found {len(all_instances)} running EC2 instances in region '{session.region_name}'.")
+    print(f"Region: {session.region_name}")
     
     while True:
         target_type = choose_target_type()
@@ -303,12 +327,12 @@ def main():
                 continue
             
             if connection_type == ConnectionType.SSM:
-                instance_id = select_ec2_instance(all_instances, "connect to")
+                instance_id = select_ec2_instance(session, "connect to")
                 if instance_id:
                     start_ssm_session(instance_id, session)
             
             elif connection_type == ConnectionType.SSH:
-                instance_id = select_ec2_instance(all_instances, "connect to")
+                instance_id = select_ec2_instance(session, "connect to")
                 if not instance_id:
                     print("No instance selected.")
                     continue
@@ -320,11 +344,53 @@ def main():
                 username, key_path = ssh_details
                 
                 start_ssh_session(instance_id, username, key_path, session)
+
+            elif connection_type == ConnectionType.SSH_PROXY:
+                bastion_id = select_ec2_instance(session, "use as Jump Host")
+                if not bastion_id:
+                    print("No instance selected.")
+                    continue
+                
+                print("\n--- Bastion SSH Details ---")
+                bastion_details = prompt_for_ssh_details()
+                if not bastion_details:
+                    print("Failed to get Bastion SSH details.")
+                    continue
+                bastion_user, bastion_key = bastion_details
+                
+                print("\n--- Target Host Details ---")
+                target_host = input("Enter Target Host (IP or DNS): ").strip()
+                if not target_host:
+                    print("Error: Target host cannot be empty.", file=sys.stderr)
+                    continue
+
+                target_user_input = input(f"Enter Target Username [default: {bastion_user}]: ").strip()
+                target_user = target_user_input if target_user_input else bastion_user
+                
+                target_key_input = input(f"Enter Target Key Path [default: {bastion_key}]: ").strip()
+                if target_key_input:
+                     target_key = Path(target_key_input.strip('"\'')).expanduser()
+                     if not target_key.is_file():
+                         print(f"Error: Target key file not found at '{target_key}'", file=sys.stderr)
+                         continue
+                else:
+                    target_key = bastion_key
+
+                if not validate_key_permissions(target_key):
+                    response = input("Continue anyway? (y/N): ").strip().lower()
+                    if response != 'y':
+                        continue
+                
+                start_ssh_proxyjump_session(
+                    bastion_id, bastion_user, bastion_key,
+                    target_host, target_user, target_key,
+                    session
+                )
         
         
         elif target_type == TargetType.RDS:
             print("\n=== Step 1: Select the EC2 instance acting as a bastion ===")
-            bastion_id = select_ec2_instance(all_instances, "use as bastion")
+            bastion_id = select_ec2_instance(session, "use as bastion")
             if not bastion_id:
                 print("No bastion instance selected.")
                 continue
@@ -346,7 +412,7 @@ def main():
                 continue
 
         elif target_type == TargetType.FILE_TRANSFER:
-            instance_id = select_ec2_instance(all_instances, "transfer files with")
+            instance_id = select_ec2_instance(session, "transfer files with")
             if not instance_id:
                 print("No instance selected.")
                 continue
@@ -392,7 +458,7 @@ def main():
         if not ask_continue_or_exit():
             break
     
-    print("Goodbye!")
+    print_goodbye()
 
 
 if __name__ == "__main__":

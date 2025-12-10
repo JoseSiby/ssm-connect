@@ -1,7 +1,7 @@
 # Copyright 2025 Siby Jose
 # Licensed under the Apache License, Version 2.0
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 
 from .inventory import (
     make_boto3_session,
