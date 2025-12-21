@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1]
+### Fixed
+- Graceful exit on KeyboardInterrupt.
+
 ## [1.3.0]
 ### Added
 - **SSH ProxyJump Support**: New dedicated mode to start an SSH session to a target host *via* an SSM-managed bastion host (`ssh -J bastion target`).
