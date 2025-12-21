@@ -314,149 +314,154 @@ def main():
     
     print(f"Region: {session.region_name}")
     
-    while True:
-        target_type = choose_target_type()
-        if not target_type:
-            print("Invalid selection. Exiting.", file=sys.stderr)
-            sys.exit(1)
-        
-        if target_type == TargetType.EC2:
-            connection_type = choose_ec2_connection_type()
-            if not connection_type:
-                print("Invalid connection type.")
-                continue
+    try:
+        while True:
+            target_type = choose_target_type()
+            if not target_type:
+                print("Invalid selection. Exiting.", file=sys.stderr)
+                sys.exit(1)
             
-            if connection_type == ConnectionType.SSM:
-                instance_id = select_ec2_instance(session, "connect to")
-                if instance_id:
-                    start_ssm_session(instance_id, session)
+            if target_type == TargetType.EC2:
+                connection_type = choose_ec2_connection_type()
+                if not connection_type:
+                    print("Invalid connection type.")
+                    continue
+                
+                if connection_type == ConnectionType.SSM:
+                    instance_id = select_ec2_instance(session, "connect to")
+                    if instance_id:
+                        start_ssm_session(instance_id, session)
+                
+                elif connection_type == ConnectionType.SSH:
+                    instance_id = select_ec2_instance(session, "connect to")
+                    if not instance_id:
+                        print("No instance selected.")
+                        continue
+                    
+                    ssh_details = prompt_for_ssh_details()
+                    if not ssh_details:
+                        print("Failed to get SSH details.")
+                        continue
+                    username, key_path = ssh_details
+                    
+                    start_ssh_session(instance_id, username, key_path, session)
+
+                elif connection_type == ConnectionType.SSH_PROXY:
+                    bastion_id = select_ec2_instance(session, "use as Jump Host")
+                    if not bastion_id:
+                        print("No instance selected.")
+                        continue
+                    
+                    print("\n--- Bastion SSH Details ---")
+                    bastion_details = prompt_for_ssh_details()
+                    if not bastion_details:
+                        print("Failed to get Bastion SSH details.")
+                        continue
+                    bastion_user, bastion_key = bastion_details
+                    
+                    print("\n--- Target Host Details ---")
+                    target_host = input("Enter Target Host (IP or DNS): ").strip()
+                    if not target_host:
+                        print("Error: Target host cannot be empty.", file=sys.stderr)
+                        continue
+
+                    target_user_input = input(f"Enter Target Username [default: {bastion_user}]: ").strip()
+                    target_user = target_user_input if target_user_input else bastion_user
+                    
+                    target_key_input = input(f"Enter Target Key Path [default: {bastion_key}]: ").strip()
+                    if target_key_input:
+                         target_key = Path(target_key_input.strip('"\'')).expanduser()
+                         if not target_key.is_file():
+                             print(f"Error: Target key file not found at '{target_key}'", file=sys.stderr)
+                             continue
+                    else:
+                        target_key = bastion_key
+
+                    if not validate_key_permissions(target_key):
+                        response = input("Continue anyway? (y/N): ").strip().lower()
+                        if response != 'y':
+                            continue
+                    
+                    start_ssh_proxyjump_session(
+                        bastion_id, bastion_user, bastion_key,
+                        target_host, target_user, target_key,
+                        session
+                    )
             
-            elif connection_type == ConnectionType.SSH:
-                instance_id = select_ec2_instance(session, "connect to")
+            
+            elif target_type == TargetType.RDS:
+                print("\n=== Step 1: Select the EC2 instance acting as a bastion ===")
+                bastion_id = select_ec2_instance(session, "use as bastion")
+                if not bastion_id:
+                    print("No bastion instance selected.")
+                    continue
+                
+                try:
+                    rds_instances = list_rds_instances(session)
+                    if not rds_instances:
+                        print("No available RDS instances found in this region.")
+                        continue
+                    
+                    selected_rds = choose_rds_instance(rds_instances)
+                    if not selected_rds:
+                        print("No RDS instance selected.")
+                        continue
+                    
+                    start_port_forwarding_to_rds(bastion_id, selected_rds, session)
+                except Exception as e:
+                    print(f"Error setting up RDS port forwarding: {e}", file=sys.stderr)
+                    continue
+
+            elif target_type == TargetType.FILE_TRANSFER:
+                instance_id = select_ec2_instance(session, "transfer files with")
                 if not instance_id:
                     print("No instance selected.")
                     continue
-                
+
                 ssh_details = prompt_for_ssh_details()
                 if not ssh_details:
                     print("Failed to get SSH details.")
                     continue
                 username, key_path = ssh_details
-                
-                start_ssh_session(instance_id, username, key_path, session)
 
-            elif connection_type == ConnectionType.SSH_PROXY:
-                bastion_id = select_ec2_instance(session, "use as Jump Host")
-                if not bastion_id:
-                    print("No instance selected.")
-                    continue
-                
-                print("\n--- Bastion SSH Details ---")
-                bastion_details = prompt_for_ssh_details()
-                if not bastion_details:
-                    print("Failed to get Bastion SSH details.")
-                    continue
-                bastion_user, bastion_key = bastion_details
-                
-                print("\n--- Target Host Details ---")
-                target_host = input("Enter Target Host (IP or DNS): ").strip()
-                if not target_host:
-                    print("Error: Target host cannot be empty.", file=sys.stderr)
-                    continue
+                while True:
+                    direction = choose_file_transfer_direction()
+                    if not direction:
+                        print("Invalid direction.")
+                        break
 
-                target_user_input = input(f"Enter Target Username [default: {bastion_user}]: ").strip()
-                target_user = target_user_input if target_user_input else bastion_user
-                
-                target_key_input = input(f"Enter Target Key Path [default: {bastion_key}]: ").strip()
-                if target_key_input:
-                     target_key = Path(target_key_input.strip('"\'')).expanduser()
-                     if not target_key.is_file():
-                         print(f"Error: Target key file not found at '{target_key}'", file=sys.stderr)
-                         continue
-                else:
-                    target_key = bastion_key
+                    paths = prompt_for_scp_paths(direction)
+                    if not paths:
+                        break
+                    local_path, remote_path = paths
 
-                if not validate_key_permissions(target_key):
-                    response = input("Continue anyway? (y/N): ").strip().lower()
-                    if response != 'y':
-                        continue
-                
-                start_ssh_proxyjump_session(
-                    bastion_id, bastion_user, bastion_key,
-                    target_host, target_user, target_key,
-                    session
-                )
-        
-        
-        elif target_type == TargetType.RDS:
-            print("\n=== Step 1: Select the EC2 instance acting as a bastion ===")
-            bastion_id = select_ec2_instance(session, "use as bastion")
-            if not bastion_id:
-                print("No bastion instance selected.")
-                continue
+                    recursive = False
+                    if direction == "upload":
+                        expanded_local_path = os.path.expanduser(local_path)
+                        if os.path.isdir(expanded_local_path):
+                            recursive = True
+                            print("\nDetected directory upload. Recursive mode enabled.")
+                    
+                    elif direction == "download":
+                         is_recursive = input("Is the remote path a directory? [y/N]: ").strip().lower()
+                         if is_recursive == 'y':
+                             recursive = True
+
+                    perform_file_transfer(
+                        instance_id, username, key_path, session,
+                        local_path, remote_path, direction, recursive
+                    )
+                    
+                    again = input("\nTransfer another file with this instance? [Y/n]: ").strip().lower()
+                    if again in ('n', 'no'):
+                        break
             
-            try:
-                rds_instances = list_rds_instances(session)
-                if not rds_instances:
-                    print("No available RDS instances found in this region.")
-                    continue
-                
-                selected_rds = choose_rds_instance(rds_instances)
-                if not selected_rds:
-                    print("No RDS instance selected.")
-                    continue
-                
-                start_port_forwarding_to_rds(bastion_id, selected_rds, session)
-            except Exception as e:
-                print(f"Error setting up RDS port forwarding: {e}", file=sys.stderr)
-                continue
+            if not ask_continue_or_exit():
+                break
+    except KeyboardInterrupt:
+        print("\n\nYou've cancelled the operation.")
+        sys.exit(0)
 
-        elif target_type == TargetType.FILE_TRANSFER:
-            instance_id = select_ec2_instance(session, "transfer files with")
-            if not instance_id:
-                print("No instance selected.")
-                continue
-
-            ssh_details = prompt_for_ssh_details()
-            if not ssh_details:
-                print("Failed to get SSH details.")
-                continue
-            username, key_path = ssh_details
-
-            while True:
-                direction = choose_file_transfer_direction()
-                if not direction:
-                    print("Invalid direction.")
-                    break
-
-                paths = prompt_for_scp_paths(direction)
-                if not paths:
-                    break
-                local_path, remote_path = paths
-
-                recursive = False
-                if direction == "upload":
-                    expanded_local_path = os.path.expanduser(local_path)
-                    if os.path.isdir(expanded_local_path):
-                        recursive = True
-                        print("\nDetected directory upload. Recursive mode enabled.")
-                
-                elif direction == "download":
-                     is_recursive = input("Is the remote path a directory? [y/N]: ").strip().lower()
-                     if is_recursive == 'y':
-                         recursive = True
-
-                perform_file_transfer(
-                    instance_id, username, key_path, session,
-                    local_path, remote_path, direction, recursive
-                )
-                
-                again = input("\nTransfer another file with this instance? [Y/n]: ").strip().lower()
-                if again in ('n', 'no'):
-                    break
-        
-        if not ask_continue_or_exit():
-            break
     
     print_goodbye()
 

@@ -7,3 +7,4 @@ pycache/
 .DS_Store
 .idea/
 .vscode/
+*.local.md
