@@ -188,12 +188,13 @@ def open_in_new_terminal(command: list, env: dict):
         subprocess.Popen(command, env=env)
 
 
-def start_ssm_session(instance_id: str, session: boto3.Session) -> int:
+def start_ssm_session(instance_id: str, session: boto3.Session, interactive_mode: bool = True) -> int:
     env = _prepare_subprocess_env(session)
     cmd = ["aws", "ssm", "start-session", "--target", instance_id]
     try:
         print(f"\nOpening SSM session to {instance_id} in a new terminal window.")
-        print("You can now open additional sessions by making another selection.\n")
+        if interactive_mode:
+            print("You can now open additional sessions by making another selection.\n")
         open_in_new_terminal(cmd, env)
         return 0
     except Exception as e:
@@ -217,7 +218,7 @@ def get_host_key_checking_choice() -> bool:
     return choice == "y"
 
 
-def start_ssh_session(instance_id: str, username: str, key_path: Path, session: boto3.Session) -> int:
+def start_ssh_session(instance_id: str, username: str, key_path: Path, session: boto3.Session, interactive_mode: bool = True) -> int:
     add_key_to_agent(key_path)
     env = _prepare_subprocess_env(session)
     
@@ -241,7 +242,8 @@ def start_ssh_session(instance_id: str, username: str, key_path: Path, session: 
     ssh_cmd.append(f"{username}@{instance_id}")
     try:
         print(f"\nOpening SSH over SSM session to {instance_id} as '{username}' in a new terminal window.")
-        print("You can now open additional sessions by making another selection.\n")
+        if interactive_mode:
+            print("You can now open additional sessions by making another selection.\n")
         open_in_new_terminal(ssh_cmd, env)
         return 0
     except Exception as e:
@@ -258,7 +260,8 @@ def start_ssh_session(instance_id: str, username: str, key_path: Path, session: 
             return 0
 
 
-def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], session: boto3.Session) -> int:
+
+def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], session: boto3.Session, interactive_mode: bool = True) -> int:
     env = _prepare_subprocess_env(session)
     local_port = find_available_local_port()
     
@@ -276,7 +279,40 @@ def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], 
         print(f"Remote host: {rds_instance['Endpoint']}")
         print(f"Remote port: {rds_instance['Port']}")
         print(f"Connect to: localhost:{local_port}")
-        print("You can now open additional sessions by making another selection.\n")
+        if interactive_mode:
+            print("You can now open additional sessions by making another selection.\n")
+        open_in_new_terminal(cmd, env)
+        return 0
+    except Exception as e:
+        print(f"Error opening terminal: {e}", file=sys.stderr)
+        print("Falling back to current terminal session.", file=sys.stderr)
+        try:
+            result = subprocess.run(cmd, env=env)
+            return result.returncode
+        except FileNotFoundError:
+            print("Error: 'aws' command not found. Please ensure the AWS CLI is installed.", file=sys.stderr)
+            return 1
+        except KeyboardInterrupt:
+            return 0
+
+
+def start_port_forwarding_session(instance_id: str, remote_port: int, local_port: int, session: boto3.Session, interactive_mode: bool = True) -> int:
+    env = _prepare_subprocess_env(session)
+    
+    cmd = [
+        "aws", "ssm", "start-session",
+        "--target", instance_id,
+        "--document-name", "AWS-StartPortForwardingSession",
+        "--parameters", f"portNumber={remote_port},localPortNumber={local_port}"
+    ]
+    
+    try:
+        print(f"\nStarting port forwarding session to {instance_id}")
+        print(f"Remote Port: {remote_port}")
+        print(f"Local Port:  {local_port}")
+        print(f"Connect to:  localhost:{local_port}")
+        if interactive_mode:
+             print("You can now open additional sessions by making another selection.\n")
         open_in_new_terminal(cmd, env)
         return 0
     except Exception as e:
@@ -362,7 +398,8 @@ def start_ssh_proxyjump_session(
     target_host: str,
     target_user: str,
     target_key: Path,
-    session: boto3.Session
+    session: boto3.Session,
+    interactive_mode: bool = True
 ) -> int:
     add_key_to_agent(bastion_key)
     add_key_to_agent(target_key)
@@ -414,7 +451,8 @@ def start_ssh_proxyjump_session(
         print(f"\nOpening SSH ProxyJump session via {bastion_id} to {target_host}...")
         print(f"Bastion User: {bastion_user}")
         print(f"Target User:  {target_user}")
-        print("You can now open additional sessions by making another selection.\n")
+        if interactive_mode:
+            print("You can now open additional sessions by making another selection.\n")
         
         open_in_new_terminal(target_ssh_cmd, env)
         return 0
