@@ -63,6 +63,8 @@ Start the CLI: ssm-connect
 1. **Choose Target Type**:
    - `[1] EC2` - Connect directly to an EC2 instance
    - `[2] RDS` - Forward port to an RDS database via bastion
+   - `[3] File Transfer` - Securely upload/download files
+   - `[4] Favorites` - Quick connect to saved aliases
 
 2. **For EC2 Connections**:
    - Choose connection type:
@@ -83,6 +85,11 @@ Start the CLI: ssm-connect
    - Specify local and remote file paths
    - Tool handles the secure copy tunneling
 
+5. **Favorites & Aliases**:
+   - **Save**: After any connection, answer `y` to "Save this connection as a favorite?"
+   - **Connect**:
+     - Select `[4] Favorites` from menu, OR
+     - Use CLI: `ssm-connect -f <alias>` (e.g., `ssm-connect -f prod-db`)
 
 ## Troubleshooting
 

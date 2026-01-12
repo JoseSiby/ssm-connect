@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0]
+### Added
+- **Favorites & Aliases**: Save frequently used connections for instant access.
+- **CLI Shortcuts**: Connect instantly using `ssm-connect -f <alias>`.
+- **Interactive Management**: New "Favorites" menu to manage and delete aliases.
+
 ## [1.3.1]
 ### Fixed
 - Graceful exit on KeyboardInterrupt.
