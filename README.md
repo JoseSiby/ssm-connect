@@ -91,6 +91,12 @@ Start the CLI: ssm-connect
      - Select `[4] Favorites` from menu, OR
      - Use CLI: `ssm-connect -f <alias>` (e.g., `ssm-connect -f prod-db`)
 
+### Alternate Execution
+If you cannot modify your PATH or access the `Scripts` folder, you can run the tool as a Python module:
+```bash
+python -m ssm_connect
+```
+
 ## Troubleshooting
 
 ### Command not found
