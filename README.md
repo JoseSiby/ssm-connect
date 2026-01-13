@@ -19,6 +19,8 @@ Multiple sessions in parallel (each opens in a new terminal). Keyword search acr
 - **RDS Connections**:
   - Port forwarding to RDS databases via EC2 bastion host
   - Auto-selects available local port
+- **Customization**:
+  - Support for custom SSM Documents via `-d` / `--document-name` flag
 - **File Transfer**:
   - Upload/Download files to/from EC2 instances using SCP
   - Uses existing SSH key configuration
@@ -66,6 +68,9 @@ Start the CLI: ssm-connect
    - `[3] File Transfer` - Securely upload/download files
    - `[4] Favorites` - Quick connect to saved aliases
 
+   **Global Option**:
+   - `-d "MyDoc"` / `--document-name "MyDoc"`: Override the default SSM document used for the connection.
+
 2. **For EC2 Connections**:
    - Choose connection type:
      - `[1] SSM` - Interactive shell via Session Manager
@@ -90,6 +95,7 @@ Start the CLI: ssm-connect
    - **Connect**:
      - Select `[4] Favorites` from menu, OR
      - Use CLI: `ssm-connect -f <alias>` (e.g., `ssm-connect -f prod-db`)
+     - Override document: `ssm-connect -f prod-db -d "OverridesSavedDoc"`
 
 ### Alternate Execution
 If you cannot modify your PATH or access the `Scripts` folder, you can run the tool as a Python module:

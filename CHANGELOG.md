@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0]
+### Added
+- **Custom SSM Document Support**: Specify a custom SSM document name via `--document-name` (or `-d`) CLI argument.
+- **Persistent Document Settings**: Custom document names are saved with favorites and can be overridden via CLI.
+
 ## [1.4.1]
 ### Added
 - **Module Execution**: Run the tool via `python -m ssm_connect`.
