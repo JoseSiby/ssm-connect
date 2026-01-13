@@ -188,9 +188,11 @@ def open_in_new_terminal(command: list, env: dict):
         subprocess.Popen(command, env=env)
 
 
-def start_ssm_session(instance_id: str, session: boto3.Session, interactive_mode: bool = True) -> int:
+def start_ssm_session(instance_id: str, session: boto3.Session, interactive_mode: bool = True, document_name: Optional[str] = None) -> int:
     env = _prepare_subprocess_env(session)
     cmd = ["aws", "ssm", "start-session", "--target", instance_id]
+    if document_name:
+        cmd.extend(["--document-name", document_name])
     try:
         print(f"\nOpening SSM session to {instance_id} in a new terminal window.")
         if interactive_mode:
@@ -218,7 +220,7 @@ def get_host_key_checking_choice() -> bool:
     return choice == "y"
 
 
-def start_ssh_session(instance_id: str, username: str, key_path: Path, session: boto3.Session, interactive_mode: bool = True) -> int:
+def start_ssh_session(instance_id: str, username: str, key_path: Path, session: boto3.Session, interactive_mode: bool = True, document_name: str = "AWS-StartSSHSession") -> int:
     add_key_to_agent(key_path)
     env = _prepare_subprocess_env(session)
     
@@ -226,7 +228,7 @@ def start_ssh_session(instance_id: str, username: str, key_path: Path, session: 
     
     proxy_command = (
         f"aws ssm start-session --target {instance_id} "
-        f"--document-name AWS-StartSSHSession --parameters portNumber=%p"
+        f"--document-name {document_name} --parameters portNumber=%p"
     )
     strict_host_check = get_host_key_checking_choice()
     ssh_cmd = [
@@ -261,14 +263,14 @@ def start_ssh_session(instance_id: str, username: str, key_path: Path, session: 
 
 
 
-def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], session: boto3.Session, interactive_mode: bool = True) -> int:
+def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], session: boto3.Session, interactive_mode: bool = True, document_name: str = "AWS-StartPortForwardingSessionToRemoteHost") -> int:
     env = _prepare_subprocess_env(session)
     local_port = find_available_local_port()
     
     cmd = [
         "aws", "ssm", "start-session",
         "--target", bastion_id,
-        "--document-name", "AWS-StartPortForwardingSessionToRemoteHost",
+        "--document-name", document_name,
         "--parameters", f"host={rds_instance['Endpoint']},portNumber={rds_instance['Port']},localPortNumber={local_port}"
     ]
     
@@ -296,13 +298,13 @@ def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], 
             return 0
 
 
-def start_port_forwarding_session(instance_id: str, remote_port: int, local_port: int, session: boto3.Session, interactive_mode: bool = True) -> int:
+def start_port_forwarding_session(instance_id: str, remote_port: int, local_port: int, session: boto3.Session, interactive_mode: bool = True, document_name: str = "AWS-StartPortForwardingSession") -> int:
     env = _prepare_subprocess_env(session)
     
     cmd = [
         "aws", "ssm", "start-session",
         "--target", instance_id,
-        "--document-name", "AWS-StartPortForwardingSession",
+        "--document-name", document_name,
         "--parameters", f"portNumber={remote_port},localPortNumber={local_port}"
     ]
     
@@ -336,7 +338,8 @@ def perform_file_transfer(
     local_path: str,
     remote_path: str,
     direction: str = "upload",
-    recursive: bool = False
+    recursive: bool = False,
+    document_name: str = "AWS-StartSSHSession"
 ) -> int:
     add_key_to_agent(key_path)
     env = _prepare_subprocess_env(session)
@@ -345,7 +348,7 @@ def perform_file_transfer(
     
     proxy_command = (
         f"aws ssm start-session --target {instance_id} "
-        f"--document-name AWS-StartSSHSession --parameters portNumber=%p"
+        f"--document-name {document_name} --parameters portNumber=%p"
     )
     strict_host_check = get_host_key_checking_choice()
     
@@ -399,7 +402,8 @@ def start_ssh_proxyjump_session(
     target_user: str,
     target_key: Path,
     session: boto3.Session,
-    interactive_mode: bool = True
+    interactive_mode: bool = True,
+    document_name: str = "AWS-StartSSHSession"
 ) -> int:
     add_key_to_agent(bastion_key)
     add_key_to_agent(target_key)
@@ -409,7 +413,7 @@ def start_ssh_proxyjump_session(
 
     ssm_proxy_command = (
         f"aws ssm start-session --target {bastion_id} "
-        f"--document-name AWS-StartSSHSession --parameters portNumber=%p"
+        f"--document-name {document_name} --parameters portNumber=%p"
     )
     
     strict_host_check = get_host_key_checking_choice()

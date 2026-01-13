@@ -407,7 +407,7 @@ def select_and_manage_favorites(session: boto3.Session) -> bool:
 
 
 
-def interactive_file_transfer(instance_id: str, username: str, key_path: Path, session: boto3.Session):
+def interactive_file_transfer(instance_id: str, username: str, key_path: Path, session: boto3.Session, document_name: Optional[str] = None):
     while True:
         direction = choose_file_transfer_direction()
         if not direction:
@@ -433,7 +433,8 @@ def interactive_file_transfer(instance_id: str, username: str, key_path: Path, s
 
         perform_file_transfer(
             instance_id, username, key_path, session,
-            local_path, remote_path, direction, recursive
+            local_path, remote_path, direction, recursive,
+            document_name=document_name or "AWS-StartSSHSession"
         )
         
         again = input("\nTransfer another file with this instance? [Y/n]: ").strip().lower()
@@ -441,8 +442,10 @@ def interactive_file_transfer(instance_id: str, username: str, key_path: Path, s
             break
 
 
-def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_mode: bool = True):
+def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_mode: bool = True, override_document_name: Optional[str] = None):
     print(f"Connecting to favorite '{name}'...")
+    
+    doc_name = override_document_name or fav.get('document_name')
     
     if 'instance_name' in fav:
         target_name = fav['instance_name']
@@ -471,15 +474,19 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
     if target_type == TargetType.EC2.value:
         conn_type = fav.get('connection_type')
         if conn_type == ConnectionType.SSM.value:
-            start_ssm_session(fav['instance_id'], session, interactive_mode=interactive_mode)
+            start_ssm_session(fav['instance_id'], session, interactive_mode=interactive_mode, document_name=doc_name)
         
         elif conn_type == ConnectionType.SSH.value:
+            kwargs = {}
+            if doc_name:
+                kwargs['document_name'] = doc_name
             start_ssh_session(
                 fav['instance_id'], 
                 fav['username'], 
                 Path(fav['key_path']), 
                 session,
-                interactive_mode=interactive_mode
+                interactive_mode=interactive_mode,
+                **kwargs
             )
 
         elif conn_type == ConnectionType.SSH_PROXY.value:
@@ -487,20 +494,28 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
              if 'instance_name' in fav and fav['instance_id'] == bastion_id:
                   bastion_id = fav['instance_id']
 
+             kwargs = {}
+             if doc_name:
+                 kwargs['document_name'] = doc_name
              start_ssh_proxyjump_session(
                  bastion_id, fav['bastion_user'], Path(fav['bastion_key']),
                  fav['target_host'], fav['target_user'], Path(fav['target_key']),
                  session,
-                 interactive_mode=interactive_mode
+                 interactive_mode=interactive_mode,
+                 **kwargs
              )
 
         elif conn_type == ConnectionType.PORT_FORWARDING.value:
+            kwargs = {}
+            if doc_name:
+                kwargs['document_name'] = doc_name
             start_port_forwarding_session(
                 fav['instance_id'],
                 fav['remote_port'],
                 fav['local_port'],
                 session,
-                interactive_mode=interactive_mode
+                interactive_mode=interactive_mode,
+                **kwargs
             )
 
     elif target_type == TargetType.RDS.value:
@@ -514,14 +529,18 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
             "Endpoint": fav['endpoint_address'],
             "Port": fav['port']
         }
-        start_port_forwarding_to_rds(bastion_id, rds_info, session, interactive_mode=interactive_mode)
+        kwargs = {}
+        if doc_name:
+            kwargs['document_name'] = doc_name
+        start_port_forwarding_to_rds(bastion_id, rds_info, session, interactive_mode=interactive_mode, **kwargs)
         
     elif target_type == TargetType.FILE_TRANSFER.value:
         interactive_file_transfer(
             fav['instance_id'],
             fav['username'],
             Path(fav['key_path']),
-            session
+            session,
+            document_name = doc_name
         )
     else:
         print(f"Unknown favorite type: {target_type}", file=sys.stderr)
@@ -535,6 +554,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="SSM Connect - AWS SSM/SSH Client")
     parser.add_argument("--reset-config", action="store_true", help="Reset saved SSH configuration")
+    parser.add_argument("-d", "--document-name", help="Custom SSM Document name (overrides default)")
     parser.add_argument("-f", "--favorite", help="Connect immediately to a saved favorite alias")
     args = parser.parse_args()
 
@@ -556,8 +576,9 @@ def main():
             print(f"Error: Favorite '{args.favorite}' not found.", file=sys.stderr)
             sys.exit(1)
         
+        
         print(f"Region: {session.region_name}")
-        execute_favorite(args.favorite, fav, session, interactive_mode=False)
+        execute_favorite(args.favorite, fav, session, interactive_mode=False, override_document_name=args.document_name)
         sys.exit(0)
 
     
@@ -581,12 +602,16 @@ def main():
                 if connection_type == ConnectionType.SSM:
                     instance_id = select_ec2_instance(session, "connect to")
                     if instance_id:
-                        prompt_to_save_favorite({
+                        fav_data = {
                             'type': TargetType.EC2.value,
                             'connection_type': ConnectionType.SSM.value,
                             'instance_id': instance_id
-                        }, session)
-                        start_ssm_session(instance_id, session)
+                        }
+                        if args.document_name:
+                            fav_data['document_name'] = args.document_name
+                        
+                        prompt_to_save_favorite(fav_data, session)
+                        start_ssm_session(instance_id, session, document_name=args.document_name)
                 
                 elif connection_type == ConnectionType.SSH:
                     instance_id = select_ec2_instance(session, "connect to")
@@ -605,10 +630,20 @@ def main():
                         'connection_type': ConnectionType.SSH.value,
                         'instance_id': instance_id,
                         'username': username,
+                        'key_path': str(key_path),
+                        'document_name': args.document_name
+                    } if args.document_name else {
+                        'type': TargetType.EC2.value,
+                        'connection_type': ConnectionType.SSH.value,
+                        'instance_id': instance_id,
+                        'username': username,
                         'key_path': str(key_path)
                     }, session)
 
-                    start_ssh_session(instance_id, username, key_path, session)
+                    kwargs = {}
+                    if args.document_name:
+                        kwargs['document_name'] = args.document_name
+                    start_ssh_session(instance_id, username, key_path, session, **kwargs)
 
                 elif connection_type == ConnectionType.SSH_PROXY:
                     bastion_id = select_ec2_instance(session, "use as Jump Host")
@@ -646,7 +681,7 @@ def main():
                         if response != 'y':
                             continue
                     
-                    prompt_to_save_favorite({
+                    fav_data = {
                         'type': TargetType.EC2.value,
                         'connection_type': ConnectionType.SSH_PROXY.value,
                         'bastion_id': bastion_id,
@@ -656,12 +691,21 @@ def main():
                         'target_user': target_user,
                         'target_key': str(target_key),
                         'instance_id': bastion_id
-                    }, session)
+                    }
+                    if args.document_name:
+                        fav_data['document_name'] = args.document_name
+                        
+                    prompt_to_save_favorite(fav_data, session)
+
+                    kwargs = {}
+                    if args.document_name:
+                        kwargs['document_name'] = args.document_name
 
                     start_ssh_proxyjump_session(
                         bastion_id, bastion_user, bastion_key,
                         target_host, target_user, target_key,
-                        session
+                        session,
+                        **kwargs
                     )
 
                 elif connection_type == ConnectionType.PORT_FORWARDING:
@@ -687,15 +731,22 @@ def main():
                          print("Invalid port number.")
                          continue
 
-                    prompt_to_save_favorite({
+                    fav_data = {
                         'type': TargetType.EC2.value,
                         'connection_type': ConnectionType.PORT_FORWARDING.value,
                         'instance_id': instance_id,
                         'remote_port': remote_port,
                         'local_port': local_port
-                    }, session)
+                    }
+                    if args.document_name:
+                        fav_data['document_name'] = args.document_name
+
+                    prompt_to_save_favorite(fav_data, session)
                     
-                    start_port_forwarding_session(instance_id, remote_port, local_port, session)
+                    kwargs = {}
+                    if args.document_name:
+                        kwargs['document_name'] = args.document_name
+                    start_port_forwarding_session(instance_id, remote_port, local_port, session, **kwargs)
 
             elif target_type == TargetType.FAVORITES:
                 if not select_and_manage_favorites(session):
@@ -719,16 +770,23 @@ def main():
                         print("No RDS instance selected.")
                         continue
                      
-                    prompt_to_save_favorite({
+                    fav_data = {
                         'type': TargetType.RDS.value,
                         'bastion_id': bastion_id,
                         'db_identifier': selected_rds['DBInstanceIdentifier'],
                         'endpoint_address': selected_rds['Endpoint'],
                         'port': selected_rds['Port'],
                         'instance_id': bastion_id
-                    }, session)
+                    }
+                    if args.document_name:
+                         fav_data['document_name'] = args.document_name
+                    
+                    prompt_to_save_favorite(fav_data, session)
 
-                    start_port_forwarding_to_rds(bastion_id, selected_rds, session)
+                    kwargs = {}
+                    if args.document_name:
+                         kwargs['document_name'] = args.document_name
+                    start_port_forwarding_to_rds(bastion_id, selected_rds, session, **kwargs)
                 except Exception as e:
                     print(f"Error setting up RDS port forwarding: {e}", file=sys.stderr)
                     continue
@@ -745,14 +803,18 @@ def main():
                     continue
                 username, key_path = ssh_details
                 
-                prompt_to_save_favorite({
+                fav_data = {
                     'type': TargetType.FILE_TRANSFER.value,
                     'instance_id': instance_id,
                     'username': username,
                     'key_path': str(key_path)
-                }, session)
+                }
+                if args.document_name:
+                     fav_data['document_name'] = args.document_name
 
-                interactive_file_transfer(instance_id, username, key_path, session)
+                prompt_to_save_favorite(fav_data, session)
+
+                interactive_file_transfer(instance_id, username, key_path, session, document_name=args.document_name)
             
             if not ask_continue_or_exit():
                 break
