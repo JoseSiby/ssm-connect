@@ -78,6 +78,7 @@ Start the CLI: ssm-connect
      - `[3] SSH ProxyJump` - Connect to remote host via this instance
    - Filter and select target EC2 instance
    - For SSH: Provide private key path and username
+   - For ProxyJump: Select target from list (auto-resolves IP) or enter manually
 
 3. **For RDS Connections**:
    - **Step 1**: Select EC2 bastion instance (must have SSM access)
