@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1]
+### Added
+- **Instance ID Resolution**: Automatically resolves Instance IDs (`i-xxxx`) to Private IPs for SSH Proxy Jump targets.
+- **Interactive Target Selection**: Select SSH Proxy Jump target host directly from the list of running instances.
+
 ## [1.5.0]
 ### Added
 - **Custom SSM Document Support**: Specify a custom SSM document name via `--document-name` (or `-d`) CLI argument.

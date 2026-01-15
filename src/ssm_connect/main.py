@@ -659,10 +659,56 @@ def main():
                     bastion_user, bastion_key = bastion_details
                     
                     print("\n--- Target Host Details ---")
-                    target_host = input("Enter Target Host (IP or DNS): ").strip()
-                    if not target_host:
-                        print("Error: Target host cannot be empty.", file=sys.stderr)
+                    print("Select Target Host via:")
+                    print("[1] EC2 Instance List (Resolves to Private IP)")
+                    print("[2] Manual Hostname/IP")
+                    
+                    target_host = None
+                    try:
+                        target_choice = input("\nEnter choice (1 or 2): ").strip()
+                    except KeyboardInterrupt:
                         continue
+
+                    if target_choice == '1':
+                        target_id = select_ec2_instance(session, "connect to (via Bastion)")
+                        if not target_id:
+                            print("No target instance selected.")
+                            continue
+                        
+                        # Resolve Private IP
+                        try:
+                            t_instances = list_running_instances(session, [target_id])
+                            if t_instances:
+                                resolved_ip = t_instances[0].get('PrivateIpAddress')
+                                if resolved_ip:
+                                    target_host = resolved_ip
+                                    print(f"Resolved instance {target_id} to Private IP: {target_host}")
+                                else:
+                                    print(f"Warning: Instance {target_id} has no Private IP address.")
+                        except Exception as e:
+                            print(f"Warning: Failed to resolve instance IP: {e}", file=sys.stderr)
+                        
+                        if not target_host:
+                             print("Could not resolve a Private IP for the selected instance. Using ID as hostname.")
+                             target_host = target_id
+
+                    else:
+                        target_host = input("Enter Target Host (IP or DNS): ").strip()
+                        if not target_host:
+                            print("Error: Target host cannot be empty.", file=sys.stderr)
+                            continue
+                        
+                        # Optional: Auto-resolve if user manually types an Instance ID
+                        if target_host.startswith("i-"):
+                             try:
+                                t_instances = list_running_instances(session, [target_host])
+                                if t_instances:
+                                    resolved_ip = t_instances[0].get('PrivateIpAddress')
+                                    if resolved_ip:
+                                        print(f"Auto-resolved {target_host} -> {resolved_ip}")
+                                        target_host = resolved_ip
+                             except Exception:
+                                 pass  # Fail silently and use original input
 
                     target_user_input = input(f"Enter Target Username [default: {bastion_user}]: ").strip()
                     target_user = target_user_input if target_user_input else bastion_user

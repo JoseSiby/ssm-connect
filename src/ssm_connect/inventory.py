@@ -74,6 +74,7 @@ def list_running_instances(session: boto3.Session, keywords: Optional[List[str]]
                 instances.append({
                     "InstanceId": inst.get("InstanceId"),
                     "Name": _get_instance_name(tags),
+                    "PrivateIpAddress": inst.get("PrivateIpAddress"),
                     "AllTagsBlob": all_tag_values
                 })
     return instances
