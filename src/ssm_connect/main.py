@@ -532,6 +532,8 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
         kwargs = {}
         if doc_name:
             kwargs['document_name'] = doc_name
+        if 'local_port' in fav:
+            kwargs['local_port'] = fav['local_port']
         start_port_forwarding_to_rds(bastion_id, rds_info, session, interactive_mode=interactive_mode, **kwargs)
         
     elif target_type == TargetType.FILE_TRANSFER.value:
@@ -816,23 +818,26 @@ def main():
                         print("No RDS instance selected.")
                         continue
                      
+                    local_port = find_available_local_port()
+
                     fav_data = {
                         'type': TargetType.RDS.value,
                         'bastion_id': bastion_id,
                         'db_identifier': selected_rds['DBInstanceIdentifier'],
                         'endpoint_address': selected_rds['Endpoint'],
                         'port': selected_rds['Port'],
-                        'instance_id': bastion_id
+                        'instance_id': bastion_id,
+                        'local_port': local_port
                     }
                     if args.document_name:
                          fav_data['document_name'] = args.document_name
-                    
+
                     prompt_to_save_favorite(fav_data, session)
 
                     kwargs = {}
                     if args.document_name:
                          kwargs['document_name'] = args.document_name
-                    start_port_forwarding_to_rds(bastion_id, selected_rds, session, **kwargs)
+                    start_port_forwarding_to_rds(bastion_id, selected_rds, session, local_port=local_port, **kwargs)
                 except Exception as e:
                     print(f"Error setting up RDS port forwarding: {e}", file=sys.stderr)
                     continue

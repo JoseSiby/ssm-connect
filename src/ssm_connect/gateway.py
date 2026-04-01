@@ -263,9 +263,10 @@ def start_ssh_session(instance_id: str, username: str, key_path: Path, session: 
 
 
 
-def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], session: boto3.Session, interactive_mode: bool = True, document_name: str = "AWS-StartPortForwardingSessionToRemoteHost") -> int:
+def start_port_forwarding_to_rds(bastion_id: str, rds_instance: Dict[str, str], session: boto3.Session, interactive_mode: bool = True, document_name: str = "AWS-StartPortForwardingSessionToRemoteHost", local_port: int = None) -> int:
     env = _prepare_subprocess_env(session)
-    local_port = find_available_local_port()
+    if local_port is None:
+        local_port = find_available_local_port()
     
     cmd = [
         "aws", "ssm", "start-session",
