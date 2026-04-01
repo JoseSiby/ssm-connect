@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.3]
+### Fixed
+- **RDS Favorites Local Port**: Local port is now persisted when saving an RDS session as a favorite, ensuring the same port is reused on subsequent connections.
+
 ## [1.5.1]
 ### Added
 - **Instance ID Resolution**: Automatically resolves Instance IDs (`i-xxxx`) to Private IPs for SSH Proxy Jump targets.
