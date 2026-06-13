@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0]
+### Added
+- **Session Window Labels**: Each session now sets its terminal window/tab title to identify the target (e.g. `SSM - web-prod-01`, `RDS - prod-db (local 54321)`), so parallel sessions are easy to tell apart in the taskbar and tab strip. Titles use the OSC escape sequence on Linux/macOS and native `wt --title`/`title` on Windows.
+- **Session Banner**: A header is printed inside each new session window showing the connection type, target (Name and Instance ID), region, and other relevant details (ports, bastion, endpoint), giving a durable record that survives even if the title is overwritten by a remote shell.
+
+### Changed
+- Instance Name is now threaded through to all connection launchers so labels show the human-readable Name alongside the Instance ID.
+- SSH ProxyJump target selection resolves the Private IP from the already-fetched instance list instead of issuing a second AWS API call.
+
 ## [1.5.3]
 ### Fixed
 - **RDS Favorites Local Port**: Local port is now persisted when saving an RDS session as a favorite, ensuring the same port is reused on subsequent connections.

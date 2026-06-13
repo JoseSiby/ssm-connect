@@ -158,7 +158,8 @@ def prompt_for_keywords() -> Optional[List[str]]:
     return [s.lower() for s in raw.replace(',', ' ').split() if s.strip()]
 
 
-def choose_instance(instances: List[Dict[str, str]], purpose: str = "connect to") -> Optional[str]:
+def choose_instance(instances: List[Dict[str, str]], purpose: str = "connect to"):
+    """Returns the selected instance dict, the string "RETRY", or None."""
     if not instances:
         return None
     print(f"\nSelect an EC2 Instance to {purpose}:")
@@ -171,7 +172,7 @@ def choose_instance(instances: List[Dict[str, str]], purpose: str = "connect to"
             return "RETRY"
         choice_idx = int(raw_choice) - 1
         if 0 <= choice_idx < len(instances):
-            return instances[choice_idx]["InstanceId"]
+            return instances[choice_idx]
     except (ValueError, IndexError):
         return None
     return None
@@ -283,12 +284,12 @@ def prompt_for_ssh_details() -> Optional[Tuple[str, Path]]:
     return username, key_path
 
 
-def select_ec2_instance(session: boto3.Session, purpose: str = "connect to") -> Optional[str]:
-    instance_id = None
-    
-    while not instance_id:
+def select_ec2_instance(session: boto3.Session, purpose: str = "connect to") -> Optional[Dict[str, str]]:
+    instance = None
+
+    while not instance:
         keywords = prompt_for_keywords()
-        
+
         try:
             print("Fetching instances...", end="\r", flush=True)
             instances = list_running_instances(session, keywords)
@@ -298,11 +299,11 @@ def select_ec2_instance(session: boto3.Session, purpose: str = "connect to") -> 
              return None
 
         filtered_instances = filter_instances_by_keywords(instances, keywords)
-        
+
         if not filtered_instances:
             print("No instances found matching your keywords. Please try again.")
             continue
-        
+
         selection = choose_instance(filtered_instances, purpose)
         if selection is None:
             print("Invalid selection. Please try again.", file=sys.stderr)
@@ -310,9 +311,9 @@ def select_ec2_instance(session: boto3.Session, purpose: str = "connect to") -> 
         elif selection == "RETRY":
             continue
         else:
-            instance_id = selection
-    
-    return instance_id
+            instance = selection
+
+    return instance
 
 
 def ask_continue_or_exit():
@@ -457,7 +458,8 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
                 resolved_id = candidates[0]['InstanceId']
             elif len(candidates) > 1:
                 print(f"Multiple instances found matching '{target_name}'. Please select:")
-                resolved_id = choose_instance(candidates, "resolve favorite")
+                choice = choose_instance(candidates, "resolve favorite")
+                resolved_id = choice["InstanceId"] if isinstance(choice, dict) else None
             
             if resolved_id:
                 fav['instance_id'] = resolved_id
@@ -474,18 +476,19 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
     if target_type == TargetType.EC2.value:
         conn_type = fav.get('connection_type')
         if conn_type == ConnectionType.SSM.value:
-            start_ssm_session(fav['instance_id'], session, interactive_mode=interactive_mode, document_name=doc_name)
-        
+            start_ssm_session(fav['instance_id'], session, interactive_mode=interactive_mode, document_name=doc_name, instance_name=fav.get('instance_name'))
+
         elif conn_type == ConnectionType.SSH.value:
             kwargs = {}
             if doc_name:
                 kwargs['document_name'] = doc_name
             start_ssh_session(
-                fav['instance_id'], 
-                fav['username'], 
-                Path(fav['key_path']), 
+                fav['instance_id'],
+                fav['username'],
+                Path(fav['key_path']),
                 session,
                 interactive_mode=interactive_mode,
+                instance_name=fav.get('instance_name'),
                 **kwargs
             )
 
@@ -502,6 +505,7 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
                  fav['target_host'], fav['target_user'], Path(fav['target_key']),
                  session,
                  interactive_mode=interactive_mode,
+                 bastion_name=fav.get('instance_name'),
                  **kwargs
              )
 
@@ -515,6 +519,7 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
                 fav['local_port'],
                 session,
                 interactive_mode=interactive_mode,
+                instance_name=fav.get('instance_name'),
                 **kwargs
             )
 
@@ -534,7 +539,7 @@ def execute_favorite(name: str, fav: dict, session: boto3.Session, interactive_m
             kwargs['document_name'] = doc_name
         if 'local_port' in fav:
             kwargs['local_port'] = fav['local_port']
-        start_port_forwarding_to_rds(bastion_id, rds_info, session, interactive_mode=interactive_mode, **kwargs)
+        start_port_forwarding_to_rds(bastion_id, rds_info, session, interactive_mode=interactive_mode, bastion_name=fav.get('instance_name'), **kwargs)
         
     elif target_type == TargetType.FILE_TRANSFER.value:
         interactive_file_transfer(
@@ -602,8 +607,10 @@ def main():
                     continue
                 
                 if connection_type == ConnectionType.SSM:
-                    instance_id = select_ec2_instance(session, "connect to")
-                    if instance_id:
+                    instance = select_ec2_instance(session, "connect to")
+                    if instance:
+                        instance_id = instance["InstanceId"]
+                        instance_name = instance.get("Name")
                         fav_data = {
                             'type': TargetType.EC2.value,
                             'connection_type': ConnectionType.SSM.value,
@@ -611,16 +618,18 @@ def main():
                         }
                         if args.document_name:
                             fav_data['document_name'] = args.document_name
-                        
+
                         prompt_to_save_favorite(fav_data, session)
-                        start_ssm_session(instance_id, session, document_name=args.document_name)
+                        start_ssm_session(instance_id, session, document_name=args.document_name, instance_name=instance_name)
                 
                 elif connection_type == ConnectionType.SSH:
-                    instance_id = select_ec2_instance(session, "connect to")
-                    if not instance_id:
+                    instance = select_ec2_instance(session, "connect to")
+                    if not instance:
                         print("No instance selected.")
                         continue
-                    
+                    instance_id = instance["InstanceId"]
+                    instance_name = instance.get("Name")
+
                     ssh_details = prompt_for_ssh_details()
                     if not ssh_details:
                         print("Failed to get SSH details.")
@@ -645,13 +654,15 @@ def main():
                     kwargs = {}
                     if args.document_name:
                         kwargs['document_name'] = args.document_name
-                    start_ssh_session(instance_id, username, key_path, session, **kwargs)
+                    start_ssh_session(instance_id, username, key_path, session, instance_name=instance_name, **kwargs)
 
                 elif connection_type == ConnectionType.SSH_PROXY:
-                    bastion_id = select_ec2_instance(session, "use as Jump Host")
-                    if not bastion_id:
+                    bastion = select_ec2_instance(session, "use as Jump Host")
+                    if not bastion:
                         print("No instance selected.")
                         continue
+                    bastion_id = bastion["InstanceId"]
+                    bastion_name = bastion.get("Name")
                     
                     print("\n--- Bastion SSH Details ---")
                     bastion_details = prompt_for_ssh_details()
@@ -666,30 +677,28 @@ def main():
                     print("[2] Manual Hostname/IP")
                     
                     target_host = None
+                    target_name = None
                     try:
                         target_choice = input("\nEnter choice (1 or 2): ").strip()
                     except KeyboardInterrupt:
                         continue
 
                     if target_choice == '1':
-                        target_id = select_ec2_instance(session, "connect to (via Bastion)")
-                        if not target_id:
+                        target = select_ec2_instance(session, "connect to (via Bastion)")
+                        if not target:
                             print("No target instance selected.")
                             continue
-                        
-                        # Resolve Private IP
-                        try:
-                            t_instances = list_running_instances(session, [target_id])
-                            if t_instances:
-                                resolved_ip = t_instances[0].get('PrivateIpAddress')
-                                if resolved_ip:
-                                    target_host = resolved_ip
-                                    print(f"Resolved instance {target_id} to Private IP: {target_host}")
-                                else:
-                                    print(f"Warning: Instance {target_id} has no Private IP address.")
-                        except Exception as e:
-                            print(f"Warning: Failed to resolve instance IP: {e}", file=sys.stderr)
-                        
+                        target_id = target["InstanceId"]
+                        target_name = target.get("Name")
+
+                        # Resolve Private IP (already fetched during selection)
+                        resolved_ip = target.get('PrivateIpAddress')
+                        if resolved_ip:
+                            target_host = resolved_ip
+                            print(f"Resolved instance {target_id} to Private IP: {target_host}")
+                        else:
+                            print(f"Warning: Instance {target_id} has no Private IP address.")
+
                         if not target_host:
                              print("Could not resolve a Private IP for the selected instance. Using ID as hostname.")
                              target_host = target_id
@@ -753,15 +762,18 @@ def main():
                         bastion_id, bastion_user, bastion_key,
                         target_host, target_user, target_key,
                         session,
+                        bastion_name=bastion_name, target_name=target_name,
                         **kwargs
                     )
 
                 elif connection_type == ConnectionType.PORT_FORWARDING:
-                    instance_id = select_ec2_instance(session, "forward ports to")
-                    if not instance_id:
+                    instance = select_ec2_instance(session, "forward ports to")
+                    if not instance:
                         print("No instance selected.")
                         continue
-                    
+                    instance_id = instance["InstanceId"]
+                    instance_name = instance.get("Name")
+
                     try:
                         remote_port_str = input("Enter Remote Port (e.g. 80, 8080): ").strip()
                         if not remote_port_str:
@@ -794,7 +806,7 @@ def main():
                     kwargs = {}
                     if args.document_name:
                         kwargs['document_name'] = args.document_name
-                    start_port_forwarding_session(instance_id, remote_port, local_port, session, **kwargs)
+                    start_port_forwarding_session(instance_id, remote_port, local_port, session, instance_name=instance_name, **kwargs)
 
             elif target_type == TargetType.FAVORITES:
                 if not select_and_manage_favorites(session):
@@ -802,10 +814,12 @@ def main():
             
             elif target_type == TargetType.RDS:
                 print("\n=== Step 1: Select the EC2 instance acting as a bastion ===")
-                bastion_id = select_ec2_instance(session, "use as bastion")
-                if not bastion_id:
+                bastion = select_ec2_instance(session, "use as bastion")
+                if not bastion:
                     print("No bastion instance selected.")
                     continue
+                bastion_id = bastion["InstanceId"]
+                bastion_name = bastion.get("Name")
                 
                 try:
                     rds_instances = list_rds_instances(session)
@@ -837,16 +851,17 @@ def main():
                     kwargs = {}
                     if args.document_name:
                          kwargs['document_name'] = args.document_name
-                    start_port_forwarding_to_rds(bastion_id, selected_rds, session, local_port=local_port, **kwargs)
+                    start_port_forwarding_to_rds(bastion_id, selected_rds, session, local_port=local_port, bastion_name=bastion_name, **kwargs)
                 except Exception as e:
                     print(f"Error setting up RDS port forwarding: {e}", file=sys.stderr)
                     continue
 
             elif target_type == TargetType.FILE_TRANSFER:
-                instance_id = select_ec2_instance(session, "transfer files with")
-                if not instance_id:
+                instance = select_ec2_instance(session, "transfer files with")
+                if not instance:
                     print("No instance selected.")
                     continue
+                instance_id = instance["InstanceId"]
 
                 ssh_details = prompt_for_ssh_details()
                 if not ssh_details:
